@@ -71,84 +71,151 @@
 #include "pic18f45k20.h"
 
 #define _XTAL_FREQ 1000000
-/*
- * 
-int main(int argc, char** argv) { 
-    TRISD0 = 0;
-    
-    LATD0 = 1;
-    
-    __delay_ms(10);
 
-    
-    return (EXIT_SUCCESS);
-}
- * */
 
-void delay(int ms){
-    for(int a = 0; a < ms; a++){
-        __delay_us(990);
+#include "duininho.h"
+#include "VelocityController.h"
+
+
+/***
+ 
+ * controle pinos:
+ * 1 - X
+ * 3 - Y
+ * GND - 4
+ * VCC - 5
+ 
+ */
+
+#define DIR_IN1 12
+#define DIR_IN2 13
+#define DIR_OUT1 14
+#define DIR_OUT2 15
+
+int digitalRead(int pin){
+    switch(pin){
+        case 12: return PORTBbits.RB2;
+        case 13: return PORTBbits.RB3;
+        case 14: return PORTBbits.RB4;
+        case 15: return PORTBbits.RB5;
+        default: return 0;
     }
 }
 
-void setupPwm(){
-    /*
-    * PWM registers configuration
-    * Fosc = 1000000 Hz
-    * Fpwm = 61.04 Hz (Requested : 61.04 Hz)
-    * Duty Cycle = 100 %
-    * Resolution is 10 bits
-    * Prescaler is 16
-    * Ensure that your PWM pin is configured as digital output
-    * see more details on http://www.micro-examples.com/
-    * this source code is provided 'as is',
-    * use it at your own risks
-    */
-    PR2 = 0b11111111 ;
-    T2CON = 0b00000111 ;
-    CCP1CON = 0b00111100 ;
-    CCP2CON = 0b00111100 ;
-}
-
-void analogWrite(char pin, char value){
-    if(pin == 1){
-        CCPR1L = value;
-    }else{
-        CCPR2L = value;
+int digitalWrite(int pin, char value){
+    switch(pin){
+        case 12: PORTBbits.RB2=value; break;
+        case 13: PORTBbits.RB3=value; break;
+        case 14: PORTBbits.RB4=value; break;
+        case 15: PORTBbits.RB5=value; break;
     }
 }
+
+VelocityController ctrl;
+    
+void setupDirection();
+void updateDirection();
+
+void setupVelocity();
+void updateVelocity();
 
 void main(){
-    unsigned char   dc ;
     TRISC = 0 ;                     // set PORTC as output
     PORTC = 0 ;                     // clear PORTC
-
-    setupPwm();
-    /*
-     * configure CCP module as 4000 Hz PWM output
-     */
     
-    CCPR1L = 128;
-    CCPR2L = 10;
+    //leitura pinos
+    RBPU = 0;   //habilita pull-up em pinos
+    
+    setupVelocity();
+    setupDirection();
     
     while(1){
-        analogWrite(1, 10);
-        analogWrite(2, 120);
+        updateVelocity();
+        updateDirection();
+        delay(20);
+    }
+}
+
+
+void setupDirection(){
+    //leds
+    TRISD5 = 0; //saida
+    TRISD6 = 0; //saida
+    
+    //configura pinos de input
+    TRISB2 = 1;
+    WPUB2 = 1;
+    
+    TRISB3 = 1;
+    WPUB3 = 1;
+    
+    //pinos de output
+    TRISB5 = 0;
+    TRISB4 = 0;
+}
+
+void updateDirection(){
+    char v1 = 0;
+    char v2 = 0;
+    
+    if(!digitalRead(DIR_IN1)){
+        v1 = 1;
+    }
+    else if(!digitalRead(DIR_IN2)){
+        v2 = 1;
+    }
+    
+    RD5=v1;
+    RD6=v2;
+    
+    digitalWrite(DIR_OUT1,v1);
+    digitalWrite(DIR_OUT2,v2);
+}
+
+void setupVelocity(){
+    //leds
+    TRISD0 = 0; //saida
+    TRISD1 = 0; //saida
+    TRISD2 = 0; //saida
+    
+    //configura pinos de input
+    TRISB0 = 1;
+    WPUB0 = 1;
+    
+    TRISB1 = 1;
+    WPUB1 = 1;
         
-        delay(1000);
-        
-        analogWrite(1, 60);
-        analogWrite(2, 60);
-        
-        delay(1000);
-        
-        analogWrite(1, 120);
-        analogWrite(2, 10);
-        delay(1000);
-//        for(dc = 0 ; dc < 128 ; dc++){
-//            CCPR1L = dc;
-//            CCPR2L = 128 - dc;
-//            __delay_ms(10);
-//        }
+    setupPwm();
+    
+    analogWrite(1, 0);
+    analogWrite(2, 0);
+  
+    setupVelocityController(&ctrl);
+    
+    setVel(&ctrl, 0);
+}
+
+void updateVelocity(){
+    RD0 = 0;
+    RD1 = 0;
+    RD2 = 0;
+
+    if(!RB0){
+        accell(&ctrl, 1);
+        RD0 = 1;
+    }
+    else if(!RB1){
+        accell(&ctrl, -1);
+        RD1 = 1;
+    }
+    else{
+        RD2 = 1;
+
+        if(ctrl.vel > 0){
+            accell(&ctrl, -1);
+        }
+        else if(ctrl.vel < 0){
+            accell(&ctrl, 1);
+        }
     }
 }
