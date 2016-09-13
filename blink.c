@@ -77,57 +77,51 @@
 #include "VelocityController.h"
 
 
-/***
- 
+/*** 3, 6, 8
+ * controle
+ *  Interno         -   Saida/Pino
+ *  1 (vermelho)    -   5 (VCC)
+ *  2 (marrom)      -   1
+ *  3 (laranja)     -   2
+ *  4 (amarelo)     -   
+ *  5 (preto)       -   4 (GND)
+ *  6 (azul)        -   7
+ *  7 (verde)       -   9
+ *  8 (cinza)       -   
+ * 
  * controle pinos:
- * 1 - X
- * 3 - Y
- * GND - 4
- * VCC - 5
+ * LX   - 1
+ * LY   - 
+ * RX   - 2
+ * RY   - 9
+ * GND  - 4
+ * VCC  - 5
  
  */
 
-#define DIR_IN1 12
-#define DIR_IN2 13
-#define DIR_OUT1 14
-#define DIR_OUT2 15
+#define DIR_OUT1 15
+#define DIR_OUT2 14
 
-#define VEL_IN1 10
-#define VEL_IN2 11
+#define VEL_OUT1_PWM 2
+#define VEL_OUT2_PWM 1
 
+
+#define PIN_AnalogX 0
+#define PIN_AnalogY 1
 
 VelocityController ctrl;
     
 void setupDirection();
-void updateDirection();
+void updateDirection(int dx);
+int readDeltaX();
 
 void setupVelocity();
-void updateVelocity();
-
-void setupLedsBar(){
-    //leds
-    TRISD = 0; //saida
-    PORTD = 0;
-    
-    TRISA0 = 1; //analog pin AN0
-    
-    setupAnalog();
-}
-void ledsBar(){
-    unsigned analog = analogRead(0);
-//        unsigned analog = 500;
-    int ledsBits = map(analog, 0, 1023, 0, 8);
-
-    char ledsOut = 0;
-    for(int i=0; i < ledsBits; ++i){
-        ledsOut = (ledsOut << 1) | 1;
-    }
-
-    PORTD = ledsOut;
-}
+void updateVelocity(int dy);
+int readDeltaY();
 
 void setup();
 void loop();
+void setupInput();
 
 void main(){
     setup();
@@ -140,43 +134,68 @@ void main(){
 void setup(){
     setupVelocity();
     setupDirection();
+    setupInput();
 }
 
 void loop(){
-    updateVelocity();
-    updateDirection();
+    int dx = readDeltaX();
+    delay(1);
+    int dy = readDeltaY();
+    
+    updateVelocity(dy);
+    updateDirection(dx);
     delay(20);
 }
 
+void setupInput(){
+    //analog pins (AN0, AN1)
+    TRISA0 = 1; 
+    TRISA1 = 1;
+    
+    setupAnalog();
+}
+
+int debounceAnalogRead(int pin){
+    int count = 0;
+    unsigned lastRead = 0;
+    do{
+        unsigned input = analogRead(pin);
+        if(lastRead == 0 || (abs(input - lastRead) < 70)){
+            ++count;
+        }
+        else{
+            count = 0;
+        }
+        lastRead = input;
+    }while(count < 3);
+        
+    return lastRead;
+}
+
+int readDeltaX(){
+    unsigned xAnalog = analogRead(PIN_AnalogX);
+//    unsigned xAnalog = debounceAnalogRead(PIN_AnalogX);
+    int slice = 260, xSlice = 50; //valores calibrados manualmente
+    
+    return xAnalog <= xSlice ? -1 : (xAnalog >= 1023 - slice ? 1 : 0);
+}
+int readDeltaY(){
+    unsigned yAnalog = analogRead(PIN_AnalogY);
+    
+    int slice = 1024/3;
+    
+    return yAnalog <= slice ? -1 : (yAnalog >= 1023 - slice ? 1 : 0);
+}
+
 void setupDirection(){
-    RBPU = 0;   //habilita pull-up em pinos
-    
-    //leds
-    TRISD5 = 0; //saida
-    TRISD6 = 0; //saida
-    
-    //configura pinos de input
-    TRISB2 = 1;
-    WPUB2 = 1;
-    
-    TRISB3 = 1;
-    WPUB3 = 1;
-    
     //pinos de output
     TRISB5 = 0;
     TRISB4 = 0;
 }
 
-void updateDirection(){
-    char v1 = 0;
-    char v2 = 0;
-    
-    if(!digitalRead(DIR_IN1)){
-        v1 = 1;
-    }
-    else if(!digitalRead(DIR_IN2)){
-        v2 = 1;
-    }
+void updateDirection(int dx){
+    char v1 = dx > 0 ? 1 : 0;
+    char v2 = dx < 0 ? 1 : 0;
     
     RD5=v1;
     RD6=v2;
@@ -186,44 +205,79 @@ void updateDirection(){
 }
 
 void setupVelocity(){
-    RBPU = 0;   //habilita pull-up em pinos
-    
     //leds
     TRISD0 = 0; //saida
     TRISD1 = 0; //saida
     TRISD2 = 0; //saida
-    
-    //configura pinos de input
-    TRISB0 = 1;
-    WPUB0 = 1;
-    
-    TRISB1 = 1;
-    WPUB1 = 1;
   
-    setupVelocityController(&ctrl);
+    setupVelocityController(&ctrl, VEL_OUT1_PWM, VEL_OUT2_PWM);
 }
 
-void updateVelocity(){
+void updateVelocity(int dy){
     RD0 = 0;
     RD1 = 0;
     RD2 = 0;
 
-    if(!digitalRead(VEL_IN1)){
-        accell(&ctrl, 1);
-        RD0 = 1;
-    }
-    else if(!digitalRead(VEL_IN2)){
-        accell(&ctrl, -1);
-        RD1 = 1;
+    if(dy != 0){
+        accell(&ctrl, dy);
+        RD1= 1;
     }
     else{
         RD2 = 1;
 
-        if(ctrl.vel > 0){
-            accell(&ctrl, -1);
-        }
-        else if(ctrl.vel < 0){
-            accell(&ctrl, 1);
+        //desacelera
+        for(int i=0; i < 3; ++i){
+            if(ctrl.vel > 0){
+                accell(&ctrl, -1);
+            }
+            else if(ctrl.vel < 0){
+                accell(&ctrl, 1);
+            }
         }
     }
 }
+
+/*
+ 
+void setupLedsBar(){
+    //leds
+    TRISD = 0; //saida
+    PORTD = 0;
+    
+    //analog pins (AN0, AN1)
+    TRISA0 = 1; 
+    TRISA1 = 1;
+    
+    setupAnalog();
+}
+void ledsBar1(){
+    unsigned analog = analogRead(0);
+//        unsigned analog = 500;
+    int ledsBits = map(analog, 0, 1023, 0, 8);
+
+    char ledsOut = 0;
+    for(int i=0; i < ledsBits; ++i){
+        ledsOut = (ledsOut << 1) | 1;
+    }
+
+    PORTD = ledsOut;
+}
+void ledsBar2(){
+    int dx = readDeltaX();
+    delay(1);
+    int dy = readDeltaY();
+    
+    int pinX = dx + 2, pinY = dy + 5;
+    
+    PORTD = (1 << pinX) | (1 << pinY);
+}
+
+void main__(){
+    setupLedsBar();
+    
+    while(1){
+        ledsBar2();
+        delay(5);
+    }
+}
+ */

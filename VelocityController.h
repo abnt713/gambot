@@ -21,9 +21,9 @@ typedef struct{
 
 void setVel(VelocityController * vCtrl, int vel);
 
-void setupVelocityController(VelocityController * vCtrl){
-    vCtrl->directPin = 1;
-    vCtrl->revertPin = 2;
+void setupVelocityController(VelocityController * vCtrl, char directPin, char reversePin){
+    vCtrl->directPin = directPin;
+    vCtrl->revertPin = reversePin;
     vCtrl->maxVel = 128;
     vCtrl->vel = 0;
     

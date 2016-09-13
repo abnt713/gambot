@@ -146,7 +146,7 @@ unsigned analogRead(char analogPin){
 }
 
 int map(int value, int fromMin, int fromMax, int toMin, int toMax){
-    int result = ((toMax - toMin) * value) / (fromMax - fromMin);
+    int result = ((value - fromMin) * (toMax - toMin)) / (fromMax - fromMin);
     return result + toMin;
 }
 
