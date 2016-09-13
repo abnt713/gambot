@@ -92,24 +92,9 @@
 #define DIR_OUT1 14
 #define DIR_OUT2 15
 
-int digitalRead(int pin){
-    switch(pin){
-        case 12: return PORTBbits.RB2;
-        case 13: return PORTBbits.RB3;
-        case 14: return PORTBbits.RB4;
-        case 15: return PORTBbits.RB5;
-        default: return 0;
-    }
-}
+#define VEL_IN1 10
+#define VEL_IN2 11
 
-int digitalWrite(int pin, char value){
-    switch(pin){
-        case 12: PORTBbits.RB2=value; break;
-        case 13: PORTBbits.RB3=value; break;
-        case 14: PORTBbits.RB4=value; break;
-        case 15: PORTBbits.RB5=value; break;
-    }
-}
 
 VelocityController ctrl;
     
@@ -119,25 +104,53 @@ void updateDirection();
 void setupVelocity();
 void updateVelocity();
 
+void setupLedsBar(){
+    //leds
+    TRISD = 0; //saida
+    PORTD = 0;
+    
+    TRISA0 = 1; //analog pin AN0
+    
+    setupAnalog();
+}
+void ledsBar(){
+    unsigned analog = analogRead(0);
+//        unsigned analog = 500;
+    int ledsBits = map(analog, 0, 1023, 0, 8);
+
+    char ledsOut = 0;
+    for(int i=0; i < ledsBits; ++i){
+        ledsOut = (ledsOut << 1) | 1;
+    }
+
+    PORTD = ledsOut;
+}
+
+void setup();
+void loop();
+
 void main(){
-    TRISC = 0 ;                     // set PORTC as output
-    PORTC = 0 ;                     // clear PORTC
-    
-    //leitura pinos
-    RBPU = 0;   //habilita pull-up em pinos
-    
-    setupVelocity();
-    setupDirection();
+    setup();
     
     while(1){
-        updateVelocity();
-        updateDirection();
-        delay(20);
+        loop();
     }
 }
 
+void setup(){
+    setupVelocity();
+    setupDirection();
+}
+
+void loop(){
+    updateVelocity();
+    updateDirection();
+    delay(20);
+}
 
 void setupDirection(){
+    RBPU = 0;   //habilita pull-up em pinos
+    
     //leds
     TRISD5 = 0; //saida
     TRISD6 = 0; //saida
@@ -173,6 +186,8 @@ void updateDirection(){
 }
 
 void setupVelocity(){
+    RBPU = 0;   //habilita pull-up em pinos
+    
     //leds
     TRISD0 = 0; //saida
     TRISD1 = 0; //saida
@@ -184,15 +199,8 @@ void setupVelocity(){
     
     TRISB1 = 1;
     WPUB1 = 1;
-        
-    setupPwm();
-    
-    analogWrite(1, 0);
-    analogWrite(2, 0);
   
     setupVelocityController(&ctrl);
-    
-    setVel(&ctrl, 0);
 }
 
 void updateVelocity(){
@@ -200,11 +208,11 @@ void updateVelocity(){
     RD1 = 0;
     RD2 = 0;
 
-    if(!RB0){
+    if(!digitalRead(VEL_IN1)){
         accell(&ctrl, 1);
         RD0 = 1;
     }
-    else if(!RB1){
+    else if(!digitalRead(VEL_IN2)){
         accell(&ctrl, -1);
         RD1 = 1;
     }
