@@ -110,6 +110,7 @@
 #define PIN_AnalogY 1
 
 VelocityController ctrl;
+int lastState = 0;
     
 void setupDirection();
 void updateDirection(int dx);
@@ -217,12 +218,23 @@ void updateVelocity(int dy){
     RD0 = 0;
     RD1 = 0;
     RD2 = 0;
-
+    int currentState;
     if(dy != 0){
-        accell(&ctrl, dy);
+        // Estamos acelerando
+        if(dy > 0){
+            currentState = 1;
+        }else if(dy < 0){
+            currentState = -1;
+        }
+        
+        if(currentState != lastState){
+            ctrl.vel = 0;
+        }
+        accell(&ctrl, dy*3);
         RD1= 1;
     }
     else{
+        currentState = 0;
         RD2 = 1;
 
         //desacelera
@@ -235,6 +247,8 @@ void updateVelocity(int dy){
             }
         }
     }
+    
+    lastState = currentState;
 }
 
 /*
